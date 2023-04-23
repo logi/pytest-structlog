@@ -3,7 +3,6 @@ import logging
 import pytest
 import structlog
 
-
 logger = structlog.get_logger("test")
 
 
@@ -148,11 +147,26 @@ def test_dupes(log):
 def test_filtering(log):
     binding()
 
-    assert log.events == [ d0, d1, d2]
-    assert log.events.infos() == [ d1, d2 ]
-    assert log.events.warnings() == [ d2 ]
+    assert log.events == [d0, d1, d2]
+    assert log.events.infos() == [d1, d2]
+    assert log.events.warnings() == [d2]
     assert not log.events.errors()
     assert not log.events.criticals()
+
+
+def test_filtering_with_errors(log):
+    binding()
+    logger.error("really bad", what="everything")
+    logger.critical("it just keeps getting worse", what="most things")
+
+    d3 = log.error("really bad", what="everything")
+    d4 = log.critical("it just keeps getting worse", what="most things")
+
+    assert log.events == [d0, d1, d2, d3, d4]
+    assert log.events.infos() == [d1, d2, d3, d4]
+    assert log.events.warnings() == [d2, d3, d4]
+    assert log.events.errors() == [d3, d4]
+    assert log.events.criticals() == [d4]
 
 
 def test_event_factories(log):

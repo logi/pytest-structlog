@@ -39,8 +39,8 @@ class EventList(list):
 
     def filter_by_level(self, level):
         """Returns a copy of this list with only events of at least the given level."""
-        level = level_to_nunber(level)
-        return EventList(event for event in self if level_to_nunber(event["level"]) >= level)
+        level = level_to_number(level)
+        return EventList(event for event in self if level_to_number(event["level"]) >= level)
 
     def infos(self):
         """Copy this list with only events of INFO level or higher"""
@@ -62,7 +62,7 @@ class EventList(list):
 absent = object()
 
 
-def level_to_nunber(level):
+def level_to_number(level):
     """Given the name of a log-level (case insensitive), return the corresponding level number."""
     if isinstance(level, int):
         return level

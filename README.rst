@@ -91,6 +91,13 @@ Then your test suite might use assertions such as shown below:
            log.info("reticulated splines", n_splines=3),
        ]
 
+       # can filter events by level to assert on
+       assert log.events.infos() == [
+           log.info("reticulating splines"),
+           log.info("reticulated splines", n_splines=3),
+       ]
+       assert not log.warnings()
+
        # can use membership to check for a single event's data
        assert {"event": "reticulating splines", "level": "info"} in log.events
 

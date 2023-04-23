@@ -37,8 +37,39 @@ class EventList(list):
     def __lt__(self, other):
         return len(self) < len(other) and is_subseq(self, other)
 
+    def filter_by_level(self, level):
+        """Returns a copy of this list with only events of at least the given level."""
+        level = level_to_nunber(level)
+        return EventList(event for event in self if level_to_nunber(event["level"]) >= level)
+
+    def infos(self):
+        """Copy this list with only events of INFO level or higher"""
+        return self.filter_by_level(logging.INFO)
+
+    def warnings(self):
+        """Copy this list with only events of WARNING level or higher"""
+        return self.filter_by_level(logging.WARNING)
+
+    def errors(self):
+        """Copy this list with only events of ERROR level or higher"""
+        return self.filter_by_level(logging.ERROR)
+
+    def criticals(self):
+        """Copy this list with only events of CRITICAL level or higher"""
+        return self.filter_by_level(logging.CRITICAL)
+
 
 absent = object()
+
+
+def level_to_nunber(level):
+    """Given the name of a log-level (case insensitive), return the corresponding level number."""
+    if isinstance(level, int):
+        return level
+    try:
+        return logging._nameToLevel[level.upper()]
+    except KeyError:
+        raise ValueError("Unknown level name " + level)
 
 
 def level_to_name(level):

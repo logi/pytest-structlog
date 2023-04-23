@@ -145,6 +145,16 @@ def test_dupes(log):
     ]
 
 
+def test_filtering(log):
+    binding()
+
+    assert log.events == [ d0, d1, d2]
+    assert log.events.infos() == [ d1, d2 ]
+    assert log.events.warnings() == [ d2 ]
+    assert not log.events.errors()
+    assert not log.events.criticals()
+
+
 def test_event_factories(log):
     assert log.debug("debug-level", extra=True) == {"event": "debug-level", "level": "debug", "extra": True}
     assert log.info("info-level", more="yes") == {"event": "info-level", "level": "info", "more": "yes"}

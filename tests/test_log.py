@@ -185,6 +185,54 @@ def test_events_filter_by_unknown_level(log):
     assert str(exi.value) == "Unknown level name unknown"
 
 
+def test_partial_match(log):
+    binding()
+    assert log.partial_events == [
+        {"event": "dbg"},
+        {"event": "inf"},
+        {"event": "uh-oh"},
+    ]
+    assert log.partial_events != [
+        {"event": "dbg"},
+        {"event": "inf", "extra": "WRONG"},
+        {"event": "uh-oh"},
+    ]
+
+
+def test_partial_match_in_filtered_list(log):
+    binding()
+    assert log.partial_events.infos() == [
+        {"event": "inf"},
+        {"event": "uh-oh"},
+    ]
+    assert log.partial_events.infos() != [
+        {"event": "inf", "extra": "WRONG"},
+        {"event": "uh-oh"},
+    ]
+    assert log.partial_events != [
+        {"event": "dbg"},
+        {"event": "WRONG"},
+        {"event": "uh-oh"},
+    ]
+
+
+def test_partial_match_in_sub_sequence(log):
+    binding()
+    assert log.partial_events >= [
+        {"event": "dbg"},
+        {"event": "inf"},
+    ]
+    assert not log.partial_events >= [
+        {"event": "dbg"},
+        {"event": "inf"},
+        {"event": "WRONG"},
+    ]
+    assert not log.partial_events >= [
+        {"event": "dbg"},
+        {"event": "inf", "data": "WRONG"},
+    ]
+
+
 def test_event_factories(log):
     assert log.debug("debug-level", extra=True) == {"event": "debug-level", "level": "debug", "extra": True}
     assert log.info("info-level", more="yes") == {"event": "info-level", "level": "info", "more": "yes"}

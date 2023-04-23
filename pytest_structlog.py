@@ -13,6 +13,11 @@ except ImportError:
     merge_contextvars = object()
     clear_contextvars = lambda *a, **kw: None  # noqa
 
+try:
+    from collections.abc import Sequence
+except ImportError:
+    # This class moved between python 2.7 and 3.0
+    from collections import Sequence
 
 __version__ = "0.6"
 
@@ -59,6 +64,64 @@ class EventList(list):
         return self.filter_by_level(logging.CRITICAL)
 
 
+class PartialEventSequence(Sequence):
+    """A view onto an EventList which compares elements
+    with is_submap instead of equality."""
+
+    # This class needs to be a Sequence to be formatted nicely by pytest
+
+    def __init__(self, inner: EventList):
+        self.inner = inner
+        super().__init__()
+
+    def __eq__(self, other) -> bool:
+        return len(self.inner) == len(other) and all(is_submap(o, t) for t, o in zip(self.inner, other))
+
+    def __ge__(self, other):
+        return is_subseq_of_submaps(other, self.inner)
+
+    def __gt__(self, other):
+        return len(self.inner) > len(other) and is_subseq_of_submaps(other, self.inner)
+
+    def __le__(self, other):
+        return is_subseq_of_submaps(self.inner, other)
+
+    def __lt__(self, other):
+        return len(self.inner) < len(other) and is_subseq_of_submaps(self.inner, other)
+
+    def __len__(self):
+        return self.inner.__len__()
+
+    def __getitem__(self, item):
+        return self.inner.__getitem__(item)
+
+    def __repr__(self) -> str:
+        return self.inner.__repr__()
+
+    def __str__(self) -> str:
+        return self.inner.__str__()
+
+    def infos(self):
+        """Copy this list with only events of INFO or higher level"""
+        return PartialEventSequence(self.inner.infos())
+
+    def warnings(self):
+        """Copy this list with only events of WARNING or higher level"""
+        return PartialEventSequence(self.inner.warnings())
+
+    def errors(self):
+        """Copy this list with only events of ERROR or higher level"""
+        return PartialEventSequence(self.inner.errors())
+
+    def criticals(self):
+        """Copy this list with only events of CRITICAL or higher level"""
+        return PartialEventSequence(self.inner.criticals())
+
+    def clear(self):
+        """Remove all events from the list that this is a view on."""
+        self.inner.clear()
+
+
 absent = object()
 
 
@@ -92,9 +155,16 @@ def is_subseq(l1, l2):
     return all(d in it for d in l1)
 
 
+def is_subseq_of_submaps(l1, l2):
+    """is there a sub-sequence l3 of l2 where each element of l1 is a submap of the corresponding element from l3"""
+    it = iter(l2)
+    return all(any(is_submap(d, e) for e in it) for d in l1)
+
+
 class StructuredLogCapture(object):
     def __init__(self):
         self.events = EventList()
+        self.partial_events = PartialEventSequence(self.events)
 
     def process(self, logger, method_name, event_dict):
         event_dict["level"] = method_name

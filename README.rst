@@ -119,6 +119,21 @@ Then your test suite might use assertions such as shown below:
            {"event": "processing", "level": "debug", "spline": 0},
        ] <= log.events
 
+       # can assert with subcontexts on lists of events
+       assert log.partial_events == [
+           {"event": "reticulating splines", "level": "info"},
+           {"event": "processing", "level": "debug"},
+           {"event": "processing", "level": "debug"},
+           {"event": "processing", "level": "debug"},
+           {"event": "reticulated splines", "level": "info"},
+       ]
+
+       # can assert with subcontexts on only the events you're interested in
+       assert log.partial_events == [
+           {"event": "processing", "spline": 0},
+           {"event": "processing", "spline": 2},
+       ]
+
 
 .. _pytest: https://docs.pytest.org/
 .. _structlog: https://www.structlog.org/

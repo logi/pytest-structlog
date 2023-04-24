@@ -169,6 +169,22 @@ def test_filtering_with_errors(log):
     assert log.events.criticals() == [d4]
 
 
+def test_events_filter_by_level(log):
+    binding()
+    expected = [d1, d2]
+
+    assert log.events.filter_by_level(logging.INFO) == expected
+    assert log.events.filter_by_level("INFO") == expected
+    assert log.events.filter_by_level("info") == expected
+
+
+def test_events_filter_by_unknown_level(log):
+    binding()
+    with pytest.raises(ValueError) as exi:
+        log.events.filter_by_level("unknown")
+    assert str(exi.value) == "Unknown level name unknown"
+
+
 def test_event_factories(log):
     assert log.debug("debug-level", extra=True) == {"event": "debug-level", "level": "debug", "extra": True}
     assert log.info("info-level", more="yes") == {"event": "info-level", "level": "info", "more": "yes"}

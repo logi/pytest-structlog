@@ -66,10 +66,12 @@ def level_to_number(level):
     """Given the name of a log-level (case insensitive), return the corresponding level number."""
     if isinstance(level, int):
         return level
-    try:
-        return logging._nameToLevel[level.upper()]
-    except KeyError:
+    # weirdly, getLevelName returns the level number when passed a string
+    number = logging.getLevelName(level.upper())
+    if isinstance(number, str):
+        # ...unless it's an unknown name, then it returns "Level {number}"
         raise ValueError("Unknown level name " + level)
+    return number
 
 
 def level_to_name(level):

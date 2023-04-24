@@ -24,10 +24,10 @@ class EventList(list):
     interspersed throughout (i.e. A is a subsequence of B)
     """
 
-    def __init__(self, seq=(), *, partial_match: bool = False) -> None:
+    def __init__(self, seq=(), partial_match=False):
         self.partial_match = partial_match
         self._compare = is_subseq_of_submaps if partial_match else is_subseq
-        super().__init__(seq)
+        super(EventList, self).__init__(seq)
 
     def __ge__(self, other):
         return self._compare(other, self)
@@ -43,7 +43,6 @@ class EventList(list):
 
     def __eq__(self, other):
         return len(self) == len(other) and self._compare(other, self)
-
 
     def filter_by_level(self, level):
         """Returns a copy of this list with only events of at least the given level."""

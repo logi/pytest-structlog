@@ -13,12 +13,6 @@ except ImportError:
     merge_contextvars = object()
     clear_contextvars = lambda *a, **kw: None  # noqa
 
-try:
-    from collections.abc import Sequence
-except ImportError:
-    # This class moved between python 2.7 and 3.0
-    from collections import Sequence
-
 __version__ = "0.6"
 
 
@@ -30,22 +24,34 @@ class EventList(list):
     interspersed throughout (i.e. A is a subsequence of B)
     """
 
+    def __init__(self, seq=(), *, partial_match: bool = False) -> None:
+        self.partial_match = partial_match
+        self._compare = is_subseq_of_submaps if partial_match else is_subseq
+        super().__init__(seq)
+
     def __ge__(self, other):
-        return is_subseq(other, self)
+        return self._compare(other, self)
 
     def __gt__(self, other):
-        return len(self) > len(other) and is_subseq(other, self)
+        return len(self) > len(other) and self._compare(other, self)
 
     def __le__(self, other):
-        return is_subseq(self, other)
+        return self._compare(self, other)
 
     def __lt__(self, other):
-        return len(self) < len(other) and is_subseq(self, other)
+        return len(self) < len(other) and self._compare(self, other)
+
+    def __eq__(self, other):
+        return len(self) == len(other) and self._compare(other, self)
+
 
     def filter_by_level(self, level):
         """Returns a copy of this list with only events of at least the given level."""
         level = level_to_number(level)
-        return EventList(event for event in self if level_to_number(event["level"]) >= level)
+        return EventList(
+            (event for event in self if level_to_number(event["level"]) >= level),
+            partial_match=self.partial_match,
+        )
 
     def infos(self):
         """Copy this list with only events of INFO level or higher"""
@@ -62,64 +68,6 @@ class EventList(list):
     def criticals(self):
         """Copy this list with only events of CRITICAL level or higher"""
         return self.filter_by_level(logging.CRITICAL)
-
-
-class PartialEventSequence(Sequence):
-    """A view onto an EventList which compares elements
-    with is_submap instead of equality."""
-
-    # This class needs to be a Sequence to be formatted nicely by pytest
-
-    def __init__(self, inner: EventList):
-        self.inner = inner
-        super().__init__()
-
-    def __eq__(self, other) -> bool:
-        return len(self.inner) == len(other) and all(is_submap(o, t) for t, o in zip(self.inner, other))
-
-    def __ge__(self, other):
-        return is_subseq_of_submaps(other, self.inner)
-
-    def __gt__(self, other):
-        return len(self.inner) > len(other) and is_subseq_of_submaps(other, self.inner)
-
-    def __le__(self, other):
-        return is_subseq_of_submaps(self.inner, other)
-
-    def __lt__(self, other):
-        return len(self.inner) < len(other) and is_subseq_of_submaps(self.inner, other)
-
-    def __len__(self):
-        return self.inner.__len__()
-
-    def __getitem__(self, item):
-        return self.inner.__getitem__(item)
-
-    def __repr__(self) -> str:
-        return self.inner.__repr__()
-
-    def __str__(self) -> str:
-        return self.inner.__str__()
-
-    def infos(self):
-        """Copy this list with only events of INFO or higher level"""
-        return PartialEventSequence(self.inner.infos())
-
-    def warnings(self):
-        """Copy this list with only events of WARNING or higher level"""
-        return PartialEventSequence(self.inner.warnings())
-
-    def errors(self):
-        """Copy this list with only events of ERROR or higher level"""
-        return PartialEventSequence(self.inner.errors())
-
-    def criticals(self):
-        """Copy this list with only events of CRITICAL or higher level"""
-        return PartialEventSequence(self.inner.criticals())
-
-    def clear(self):
-        """Remove all events from the list that this is a view on."""
-        self.inner.clear()
 
 
 absent = object()
@@ -163,8 +111,15 @@ def is_subseq_of_submaps(l1, l2):
 
 class StructuredLogCapture(object):
     def __init__(self):
-        self.events = EventList()
-        self.partial_events = PartialEventSequence(self.events)
+        self.events = EventList(partial_match=False)
+        """A list of dicts, containing any events logged during the test.
+        You can use the ``>=`` and ``<=`` operators to assert on sub-sequences."""
+
+    @property
+    def partial_events(self):
+        """A copy of ``events`` where events are considered a match if the expected event
+        is a sub-dict of the actual event."""
+        return EventList(self.events, partial_match=True)
 
     def process(self, logger, method_name, event_dict):
         event_dict["level"] = method_name
@@ -172,6 +127,7 @@ class StructuredLogCapture(object):
         raise structlog.DropEvent
 
     def has(self, message, **context):
+        """Test an event has been captured with the given message and at least the given context attributes"""
         context["event"] = message
         return any(is_submap(context, e) for e in self.events)
 
@@ -208,8 +164,9 @@ def no_op(*args, **kwargs):
 def log(monkeypatch, request):
     """Fixture providing access to captured structlog events. Interesting attributes:
 
-        ``log.events`` a list of dicts, contains any events logged during the test
-        ``log.has`` a helper method, return a bool for making simple assertions
+    - ``log.events`` a list of dicts, contains any events logged during the test
+    - ``log.partial_events`` like ``events``, but allows extra attributes on events in comparisons
+    - ``log.has`` a helper method, return a bool for making simple assertions
 
     Example usage: ``assert log.has("some message", var1="extra context")``
     """
@@ -245,6 +202,7 @@ def log(monkeypatch, request):
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_call(item):
+    # Add any captured events to the test report so they get displayed for failing tests
     yield
     events = getattr(item, "structlog_events", [])
     content = os.linesep.join([str(e) for e in events])
